@@ -178,6 +178,57 @@ void HttpServer::set_request_handler(const std::function<std::shared_ptr<Respons
     this->m_request_handler = request_handler;
 }
 
+std::string HttpServer::map_url_to_file_path(const std::string& url)
+{
+    if (url.find("..") != std::string::npos) {
+        return "";
+    }
+
+    wxString trimmed_url = wxString::FromUTF8(url);
+
+    size_t question_mark = trimmed_url.find('?');
+    if (question_mark != wxString::npos) {
+        trimmed_url = trimmed_url.substr(0, question_mark);
+    }
+
+    if (trimmed_url == "/") {
+        trimmed_url = "/web/flutter_web/index.html";
+    } else if (trimmed_url.substr(0, 11) == "/localfile/") {
+        auto real_path = trimmed_url.substr(11);
+        return real_path.ToStdString(wxConvUTF8);
+    }
+
+    // Handle directory requests - if URL ends with '/', try to serve index.html
+    if (!trimmed_url.empty() && trimmed_url.Last() == '/') {
+        wxString index_path = trimmed_url + "index.html";
+        trimmed_url = index_path;
+    }
+
+    // First try data_dir (for flutter_web files that may have been copied)
+    auto data_web_path = boost::filesystem::path(data_dir()) / "web";
+    if (!boost::filesystem::exists(data_web_path / "flutter_web")) {
+        auto source_path = boost::filesystem::path(resources_dir()) / "web" / "flutter_web";
+        auto target_path = data_web_path / "flutter_web";
+        copy_directory_recursively(source_path, target_path);
+    }
+
+    wxString data_path = wxString::FromUTF8(data_dir()) + trimmed_url;
+    std::string data_path_str = data_path.ToStdString(wxConvUTF8);
+
+    // Check if file exists in data_dir, if not, try resources_dir
+    if (boost::filesystem::exists(data_path_str)) {
+        return data_path_str;
+    } else {
+        wxString res_path = wxString::FromUTF8(resources_dir()) + trimmed_url;
+        std::string res_path_str = res_path.ToStdString(wxConvUTF8);
+        if (boost::filesystem::exists(res_path_str)) {
+            return res_path_str;
+        }
+        // If neither exists, return data path as fallback (will result in 404)
+        return data_path_str;
+    }
+}
+
 std::shared_ptr<HttpServer::Response> HttpServer::bbl_auth_handle_request(const std::string& url)
 {
     BOOST_LOG_TRIVIAL(info) << "thirdparty_login: get_response";

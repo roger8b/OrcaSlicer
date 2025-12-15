@@ -67,6 +67,8 @@ public:
 
         std::cout << "request for resource: " << url << std::endl;
     }
+private:
+    std::string map_url_to_file_path(const std::string& url);
 };
 
 class HttpServer
@@ -111,6 +113,8 @@ public:
     static std::shared_ptr<Response> bbl_auth_handle_request(const std::string& url);
 
 private:
+    std::string map_url_to_file_path(const std::string& url);
+
     class IOServer
     {
     public:
